@@ -367,6 +367,10 @@
             vector-effect: non-scaling-stroke;
         }
 
+        .chart-grid-vertical {
+            stroke: rgba(149, 171, 208, 0.08);
+        }
+
         .chart-axis-label {
             fill: #91a0b9;
             font-family: inherit;
@@ -387,6 +391,10 @@
 
         .chart-humidity-line {
             stroke: var(--cyan);
+        }
+
+        .chart-humidity-area {
+            fill: rgba(22, 198, 213, 0.12);
         }
 
         .chart-point {
@@ -564,7 +572,7 @@
                             <path d="m7 14 4-4 3 3 5-6"></path>
                         </svg>
                     </span>
-                    แนวโน้มข้อมูลเซนเซอร์
+                    แนวโน้มข้อมูลย้อนหลัง
                 </h2>
                 <span class="reading-count" id="reading-count">0 จาก 9 รายการ</span>
             </div>
@@ -573,7 +581,7 @@
                 <span class="legend-item"><span class="legend-dot legend-humidity" aria-hidden="true"></span>ความชื้น (%)</span>
             </div>
             <div class="chart-wrap">
-                <svg class="chart" id="history-chart" viewBox="0 0 1000 340" role="img" aria-label="กราฟแสดงแนวโน้มอุณหภูมิและความชื้น"></svg>
+                <svg class="chart" id="history-chart" viewBox="0 0 1000 410" role="img" aria-label="กราฟแสดงแนวโน้มอุณหภูมิและความชื้นย้อนหลัง"></svg>
                 <p class="chart-empty" id="chart-empty">กราฟจะแสดงเมื่อได้รับข้อมูลจากเซนเซอร์</p>
             </div>
         </section>
@@ -646,11 +654,11 @@
 
         function drawChart() {
             const width = 1000;
-            const height = 340;
+            const height = 410;
             const left = 58;
             const right = 58;
             const top = 16;
-            const bottom = 58;
+            const bottom = 126;
             const plotWidth = width - left - right;
             const plotHeight = height - top - bottom;
             const plotBottom = top + plotHeight;
@@ -677,12 +685,23 @@
                 );
             }
 
+            for (let slot = 0; slot < MAX_READINGS; slot += 1) {
+                const x = left + (slot / (MAX_READINGS - 1)) * plotWidth;
+                chartElement.append(createSvgElement("line", {
+                    x1: x,
+                    y1: top,
+                    x2: x,
+                    y2: plotBottom,
+                    class: "chart-grid chart-grid-vertical"
+                }));
+            }
+
             const temperaturePoints = readings.map((reading, index) => ({
-                x: left + (readings.length === 1 ? plotWidth : (index / (MAX_READINGS - 1)) * plotWidth),
+                x: left + ((MAX_READINGS - readings.length + index) / (MAX_READINGS - 1)) * plotWidth,
                 y: top + ((temperatureMax - reading.temperature) / temperatureRange) * plotHeight
             }));
             const humidityPoints = readings.map((reading, index) => ({
-                x: left + (readings.length === 1 ? plotWidth : (index / (MAX_READINGS - 1)) * plotWidth),
+                x: left + ((MAX_READINGS - readings.length + index) / (MAX_READINGS - 1)) * plotWidth,
                 y: top + (1 - reading.humidity / 100) * plotHeight
             }));
             chartElement.append(
@@ -694,21 +713,49 @@
                 return;
             }
 
-            const firstLabel = new Date(readings[0].time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-            const lastLabel = new Date(readings[readings.length - 1].time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-
+            const humidityArea = `${createSmoothPath(humidityPoints)} L ${humidityPoints[humidityPoints.length - 1].x} ${plotBottom} L ${humidityPoints[0].x} ${plotBottom} Z`;
             chartElement.append(
+                createSvgElement("path", { d: humidityArea, class: "chart-humidity-area" }),
                 createSvgElement("path", { d: createSmoothPath(temperaturePoints), class: "chart-line chart-temperature-line" }),
-                createSvgElement("path", { d: createSmoothPath(humidityPoints), class: "chart-line chart-humidity-line" }),
-                createSvgElement("text", { x: left, y: height - 17, "text-anchor": "start", class: "chart-axis-label" }, firstLabel),
-                createSvgElement("text", { x: width - right, y: height - 17, "text-anchor": "end", class: "chart-axis-label" }, lastLabel)
+                createSvgElement("path", { d: createSmoothPath(humidityPoints), class: "chart-line chart-humidity-line" })
             );
 
-            for (const point of temperaturePoints) {
-                chartElement.append(createSvgElement("circle", { cx: point.x, cy: point.y, r: 4, fill: "#ff8a32", class: "chart-point" }));
+            const firstSlot = MAX_READINGS - readings.length;
+            for (let index = 0; index < readings.length; index += 1) {
+                const slot = firstSlot + index;
+                const x = left + (slot / (MAX_READINGS - 1)) * plotWidth;
+                const dateLabel = new Date(readings[index].time).toLocaleDateString("en-GB");
+                chartElement.append(createSvgElement("text", {
+                    x,
+                    y: height - 58,
+                    "text-anchor": "end",
+                    class: "chart-axis-label",
+                    transform: `rotate(-45 ${x} ${height - 58})`
+                }, dateLabel));
+
+                const temperaturePoint = temperaturePoints[index];
+                const temperatureMarker = createSvgElement("circle", {
+                    cx: temperaturePoint.x,
+                    cy: temperaturePoint.y,
+                    r: 4,
+                    fill: "#ff8a32",
+                    class: "chart-point"
+                });
+                temperatureMarker.append(createSvgElement("title", {}, `${dateLabel}: ${readings[index].temperature.toFixed(1)} °C`));
+                chartElement.append(temperatureMarker);
             }
-            for (const point of humidityPoints) {
-                chartElement.append(createSvgElement("circle", { cx: point.x, cy: point.y, r: 4, fill: "#16c6d5", class: "chart-point" }));
+            for (let index = 0; index < humidityPoints.length; index += 1) {
+                const point = humidityPoints[index];
+                const dateLabel = new Date(readings[index].time).toLocaleDateString("en-GB");
+                const humidityMarker = createSvgElement("circle", {
+                    cx: point.x,
+                    cy: point.y,
+                    r: 4,
+                    fill: "#16c6d5",
+                    class: "chart-point"
+                });
+                humidityMarker.append(createSvgElement("title", {}, `${dateLabel}: ${readings[index].humidity.toFixed(1)} %`));
+                chartElement.append(humidityMarker);
             }
         }
 
@@ -749,14 +796,9 @@
                     second: "2-digit"
                 })}`;
 
-                const reading = { temperature, humidity, time: dataTime.toISOString() };
-                if (readings.length > 0 && readings[readings.length - 1].time === reading.time) {
-                    readings[readings.length - 1] = reading;
-                } else {
-                    readings.push(reading);
-                    if (readings.length > MAX_READINGS) {
-                        readings.shift();
-                    }
+                readings.push({ temperature, humidity, time: new Date().toISOString() });
+                if (readings.length > MAX_READINGS) {
+                    readings.shift();
                 }
 
                 setConnectionStatus(true);
