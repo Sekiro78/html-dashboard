@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            text-align: center;
+            padding: 50px;
+        }
+        .dashboard {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 200px;
+        }
+        .title {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .value {
+            font-size: 3.5em;
+            font-weight: bold;
+        }
+        .temp-val { color: #ff6b6b; }
+        .hum-val { color: #4ecdc4; }
+        .time-update {
+            margin-top: 40px;
+            color: #888;
+            font-size: 0.9em;
+        }
+        .author-info {
+            margin-top: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>IoT Temperature & Humidity Dashboard</h1>
+    <div class="author-info">
+        <div>รัฐภูมิ ทรัพย์มีชัย CE6921</div>
+        <time id="current-time"></time>
+    </div>
+    
+    <div class="dashboard">
+        <div class="card">
+            <div class="title">🌡️ อุณหภูมิ</div>
+            <div class="value temp-val" id="temp">-- °C</div>
+        </div>
+        <div class="card">
+            <div class="title">💧 ความชื้น</div>
+            <div class="value hum-val" id="hum">-- %</div>
+        </div>
+    </div>
+
+    <div class="time-update" id="last-update">อัปเดตล่าสุด: กำลังเชื่อมต่อข้อมูล...</div>
+
+    <script>
+        // URL ของคุณถูกนำมาใส่ตรงนี้เรียบร้อยแล้ว
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUbZ71rj3FrP_ZGl9rdbUDJbbIJ0w-qi4Id5T22YYjucsiYSzigRmY1OWAA5Let0bRkQ/exec";
+        
+        const FETCH_URL = SCRIPT_URL + "?action=read";
+
+        function updateCurrentTime() {
+            document.getElementById('current-time').innerText = new Date().toLocaleString('th-TH');
+        }
+
+        function fetchData() {
+            fetch(FETCH_URL)
+                .then(response => response.json())
+                .then(data => {
+                    if(!data.error) {
+                        document.getElementById('temp').innerText = data.temp + " °C";
+                        document.getElementById('hum').innerText = data.hum + " %";
+                        
+                        let dateObj = new Date(data.time);
+                        document.getElementById('last-update').innerText = "อัปเดตล่าสุด: " + dateObj.toLocaleString('th-TH');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching data:', error);
+                    document.getElementById('last-update').innerText = "เกิดข้อผิดพลาดในการดึงข้อมูล";
+                });
+        }
+
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        fetchData();
+        setInterval(fetchData, 10000);
+    </script>
+
+</body>
+</html>
